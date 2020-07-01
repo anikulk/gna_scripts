@@ -61,15 +61,26 @@ def parse_dot():
     return label_parser
 
 def main():
-    '''
-    for frame in range(0,1):
-        os.mkdir(str(frame))
-        os.mkdir(str(frame) + "/identity")
-        subprocess.run(["scp", "root@172.25.115.5:/opt/google/containers/android/rootfs/android-data/data/local/tmp/layers/" + str(frame) + "/*-kActIdentity_output.txt", "./" + str(frame) + "/identity/"])
-    '''
-    graph = parse_dot()
+    if (len(sys.argv) != 3) :
+        print("Usage : python3 check_op.py no_of_frames copy_layer_files=true/false")
+        exit()
 
-    for frame in range(0,1):
+    num_frame = int(sys.argv[1])
+    copy_files = sys.argv[2]
+
+    if copy_files == 'true':
+        for frame in range(0, num_frame):
+            os.mkdir(str(frame))
+            os.mkdir(str(frame) + "/identity")
+            subprocess.run(["scp", "root@172.25.115.5:/opt/google/containers/android/rootfs/android-data/data/local/tmp/layers/" + str(frame) + "/*-kActIdentity_output.txt", "./" + str(frame) + "/identity/"])
+
+    graph = parse_dot()
+    with open("layers.csv", 'w', newline="\n") as csvfile:
+        layerwriter = csv.writer(csvfile, delimiter=',',
+                        quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        layerwriter.writerow(["Frame Number ","Layer Number", "Overflow Count", "Underflow Count", "Max GNA value", "Scale Factor"])
+
+    for frame in range(0, num_frame):
         layers_op = []
         file_count = 0
         for filename in os.listdir(os.getcwd() + "/" + str(frame) + "/identity/"):
@@ -84,7 +95,7 @@ def main():
                     order = data.replace("\n", ",").replace('\n','').strip()
                     output = order.split(",")
                     output_list.append(output[0])
-                    #output_list 
+
             layers_op[file_count].append(len(output_list))
             layers_op[file_count].append(output_list)
             file_count += 1
@@ -95,18 +106,17 @@ def main():
             under_flow_count = 0
             over_flow_count += item[2].count("-64")
             over_flow_count += item[2].count("64")
+            res_max = max(float(value) for value in item[2])
             under_flow_count += item[2].count("0")
             item.append(over_flow_count)
             item.append(under_flow_count)
-
-        with open("layers.csv", 'w', newline="\n") as csvfile:
-            layerwriter = csv.writer(csvfile, delimiter=',',
-                            quotechar='|', quoting=csv.QUOTE_MINIMAL)
-            layerwriter.writerow(["Layer Number", "Overflow Count", "Underflow Count", "Scale Factor"])
-            for item in layers_op:
-                output = item[0].split("_")
-                print("Layer_number = " + output[0] + " " + str(item[3]) + " Scale Factor = " + str(graph.get_identity_wscale_map()[int(output[0])]))
-                layerwriter.writerow([output[0] , str(item[3]), str(item[4]), str(graph.get_identity_wscale_map()[int(output[0])])])
+            item.append(str(res_max))
+        for item in layers_op:
+            output = item[0].split("_")
+            with open("layers.csv", 'a', newline="\n") as csvfile:
+                layerwriter = csv.writer(csvfile, delimiter=',',
+                    quotechar='|', quoting=csv.QUOTE_MINIMAL)
+                layerwriter.writerow([frame, output[0] , str(item[3]), str(item[4]), str(graph.get_identity_wscale_map()[int(output[0])])])
         #print(graph.get_identity_map().items())  
 
         # List of one or more "pydot.Dot" instances deserialized from this file.
