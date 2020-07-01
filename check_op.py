@@ -116,7 +116,7 @@ def main():
             with open("layers.csv", 'a', newline="\n") as csvfile:
                 layerwriter = csv.writer(csvfile, delimiter=',',
                     quotechar='|', quoting=csv.QUOTE_MINIMAL)
-                layerwriter.writerow([frame, output[0] , str(item[3]), str(item[4]), str(graph.get_identity_wscale_map()[int(output[0])])])
+                layerwriter.writerow([frame, output[0] , str(item[3]), str(item[4]), str(item[5]), str(graph.get_identity_wscale_map()[int(output[0])])])
         #print(graph.get_identity_map().items())  
 
         # List of one or more "pydot.Dot" instances deserialized from this file.
