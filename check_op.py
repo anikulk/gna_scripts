@@ -4,16 +4,22 @@ import pydot
 import sys
 from html.parser import HTMLParser
 import csv
+import numpy as np
 
 class Layer():
     def __init__(self, ir_name, gna_name):
         self.ir_name = ir_name
         self.gna_name = gna_name
+    def get_ir_name(self):
+        return self.ir_name
+    def get_gna_name(self):
+        return self.gna_name
 
 class IdentityLayer(Layer):
     def __init__(self, ir_name, gna_name, oscale):
         Layer.__init__(self, ir_name, gna_name)
         self.oscale = oscale
+
     '''
     def print_layer(self):
         print("Layer name is " + self.ir_name  + " " + self.gna_name  + " " + self.oscale)
@@ -72,54 +78,96 @@ def main():
         for frame in range(0, num_frame):
             os.mkdir(str(frame))
             os.mkdir(str(frame) + "/identity")
+            os.mkdir(str(frame) + "/identityfp32")
             subprocess.run(["scp", "root@172.25.115.5:/opt/google/containers/android/rootfs/android-data/data/local/tmp/layers/" + str(frame) + "/*-kActIdentity_output.txt", "./" + str(frame) + "/identity/"])
+            subprocess.run(["scp", "root@172.25.115.5:/opt/google/containers/android/rootfs/android-data/data/local/tmp/ref_layers/" + str(frame) + "/*-kActIdentity_output.txt", "./" + str(frame) + "/identityfp32"])
 
     graph = parse_dot()
     with open("layers.csv", 'w', newline="\n") as csvfile:
         layerwriter = csv.writer(csvfile, delimiter=',',
                         quotechar='|', quoting=csv.QUOTE_MINIMAL)
-        layerwriter.writerow(["Frame Number ","Layer Number", "Overflow Count", "Underflow Count", "Max GNA value", "Scale Factor"])
+        layerwriter.writerow(["Frame Number ","Layer Number", "Overflow Count", "Underflow Count", "Max GNA value", "Scale Factor", "Max FP32 value", "Mean of Overflowing FP32 values", "Median", "GNA Layer Name", "IR Layer Name"])
 
     for frame in range(0, num_frame):
         layers_op = []
+        fp32_layers_op = []
         file_count = 0
         for filename in os.listdir(os.getcwd() + "/" + str(frame) + "/identity/"):
             layers_op.append([])
+            fp32_layers_op.append([])
+            fp32_layers_op[file_count].append(filename)
             layers_op[file_count].append(filename)
-            #    '''
+            
             with open(os.getcwd() + "/" + str(frame) + "/identity/" + str(filename), 'r') as f:
                 layer_op = []
                 output_list = []
 
                 for data in f:
                     order = data.replace("\n", ",").replace('\n','').strip()
-                    output = order.split(",")
+                    output = order.split(",") # Can just split by \n? 
                     output_list.append(output[0])
+
+            with open(os.getcwd() + "/" + str(frame) + "/identityfp32/" + str(filename), 'r') as f:
+                fp32_layer_op = []
+                fp32_output_list = []
+
+                for data in f:
+                    order = data.replace("\n", ",").replace('\n','').strip()
+                    output = order.split(",") # Can just split by \n? 
+                    fp32_output_list.append(output[0])
 
             layers_op[file_count].append(len(output_list))
             layers_op[file_count].append(output_list)
+            fp32_layers_op[file_count].append(len(fp32_output_list))
+            fp32_layers_op[file_count].append(fp32_output_list)
             file_count += 1
         
-        under_flow_count = 0
-        for item in layers_op:
+        for i in range(0, len(layers_op)):
+            mean = 0
+            median = 0
+            item = layers_op[i]
+            fp_item = fp32_layers_op[i] 
             over_flow_count = 0
             under_flow_count = 0
             over_flow_count += item[2].count("-64")
-            over_flow_count += item[2].count("64")
-            res_max = max(float(value) for value in item[2])
+            over_flow_count += item[2].count("63.998") # Why is it 63.998 
+            gna_values = np.array(item[2])
+
+            searchval = "-64"
+            ii = np.where(gna_values == searchval)[0]
+            ii2 = np.where(gna_values == "63.998")[0]
+            fp32_overflow_vals = []
+
+            for index in ii:
+                fp32_overflow_vals.append(float(fp_item[2][index]))
+            for index in ii2:
+                fp32_overflow_vals.append(float(fp_item[2][index]))
+            if(len(fp32_overflow_vals) != 0):
+                fp32_OF = np.array(fp32_overflow_vals)
+                fp32_OF_abs = np.abs(fp32_OF)
+                median = np.median(fp32_OF_abs)
+                mean = np.mean(fp32_OF_abs)
+            gna_max = max(abs(float(value)) for value in item[2])
+            fp32_max = max(abs(float(value)) for value in fp_item[2])
             under_flow_count += item[2].count("0")
             item.append(over_flow_count)
             item.append(under_flow_count)
-            item.append(str(res_max))
+            item.append(str(gna_max))
+            item.append(str(fp32_max))
+            item.append(str(mean))
+            item.append(str(median))
+            
+
         for item in layers_op:
             output = item[0].split("_")
             with open("layers.csv", 'a', newline="\n") as csvfile:
                 layerwriter = csv.writer(csvfile, delimiter=',',
                     quotechar='|', quoting=csv.QUOTE_MINIMAL)
-                layerwriter.writerow([frame, output[0] , str(item[3]), str(item[4]), str(item[5]), str(graph.get_identity_wscale_map()[int(output[0])])])
+                layerwriter.writerow([frame, output[0] , str(item[3]), str(item[4]), str(item[5]), str(graph.get_identity_wscale_map()[int(output[0])]), str(item[6]), str(item[7]), str(item[8]), graph.get_identity_layer_map()[int(output[0])].get_gna_name(), graph.get_identity_layer_map()[int(output[0])].get_ir_name()])
         #print(graph.get_identity_map().items())  
 
         # List of one or more "pydot.Dot" instances deserialized from this file.
+        
         
 
     
