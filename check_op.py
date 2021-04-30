@@ -38,16 +38,12 @@ class LabelHTMLParser(HTMLParser):
                 curr_layer = gna_layers.IdentityLayer(item[5], item[2], item[29])
                 layer_no = item[2].split("_")
                 self.identity_layer_map[int(layer_no[1])] = curr_layer
-                print("identity layer number" + str(layer_no[1]))
                 self.identity_wscale_map[int(layer_no[1])] = item[29]
-                print("identity layer wscale" + str(item[29]))
             if("iden_infg" in item[5]):
                 curr_layer = gna_layers.IdentityLayer(item[5], item[2], item[29])
                 layer_no = item[2].split("_")
                 self.identity_layer_map[int(layer_no[1])] = curr_layer
-                print("identity layer number" + str(layer_no[1]))
                 self.identity_wscale_map[int(layer_no[1])] = item[29]
-                print("identity layer wscale" + str(item[29]))
             if("kDnnAffineOp" in item[2]):
                 curr_layer = gna_layers.AffineLayer(item[5], item[2], item[44], item[11])
                 layer_no = item[2].split("_")
@@ -106,17 +102,9 @@ def calc_OF_UF(curr_gna_layer_op, curr_fp32_layer_op, graph):
     indexes = np.where(np.logical_and(gna_values >= (overflow_val - 1 ), gna_values <= (overflow_val + 0.1)))
     indexes2 = np.where(np.logical_and(gna_values <= (-overflow_val), gna_values >= (-overflow_val + 0.1)))
     for index in indexes[0]:
-        print ("indexes")
-        print((curr_gna_layer_op[2][index]))
         fp32_overflow_vals.append(float(curr_fp32_layer_op[2][index]))
-    print("******fp of 1**********")
-    print(fp32_overflow_vals)
     for index in indexes2[0]:
-        print ("indexes")
-        print((curr_gna_layer_op[2][index]))
         fp32_overflow_vals.append(float(curr_fp32_layer_op[2][index]))
-    print("*******fp of*********")
-    print(fp32_overflow_vals)
 
     #if(len(fp32_overflow_vals) != 0):
     fp32_OF = np.array(fp32_overflow_vals)
